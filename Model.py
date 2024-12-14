@@ -17,32 +17,28 @@ def derivative_cost_to_output(output_value, disired_value):
     cost = 2*(output_value-disired_value)
     return cost
 
-def derivatives_cost_to_weight_retio(before_values, output_value, disired_value, weights, bias):
-    retio = before_values*derivative_sigmoid(calc_z_value(weights, before_values, bias))*derivative_cost_to_output(output_value, disired_value)
-    return retio
-
-def derivatives_cost_to_bias_retio(before_value, output_value, disired_value, weight, bias):
-    retio = derivative_sigmoid(calc_z_value(weight, before_value, bias))*derivative_cost_to_output(output_value, disired_value)
-    return retio
-
-def calc_average(values):
-    return sum(values)/len(values)
-
-def calc_sum_der_of_cost_to_output(outputs, disired_outputs):
-    cost_sum = sum(derivative_cost_to_output(output, disired_outputs[i]) for i, output in enumerate(outputs))
-    return cost_sum
-        
 class Neuron():
     def __init__(self, input_size, output_size = 1):
         self.weights = [random() for i in range(0,input_size)]
         self.input_size = input_size
         self.ouput_size = output_size
         self.bias = random()
+        self.weight_cost = []
+        self.constant_part = []
         
     def calc(self, input_values):
-        out_value = sum([self.weights[i]*value for i, value in enumerate(input_values)])+self.bias
-        out_value = sigmoid(out_value)
-        return out_value
+        self.out_value = sum([self.weights[i]*value for i, value in enumerate(input_values)])+self.bias
+        self.out_value = sigmoid(self.out_value)
+        return self.out_value
+    
+    def remember_weight_cost(self, weight_cost):
+        self.weight_cost.append(weight_cost)
+
+    def remember_cosnstant_part(self, constant):
+        self.constant_part.append(constant)
+
+    def remember_z_value(self, z_value):
+        self.z_value = z_value
 
 class Layer():
     def __init__(self, input_size, output_size):
@@ -79,3 +75,35 @@ class Model():
         self.predict(train_values)
         for i, layer in enumerate(self.layers):
             self.layers[-i].calc_cost(train_result)
+
+model = Model(4)
+model.add_layer(4)
+input_val = [2*i for i in range(0,4)]
+dis_out = [1+i for i in range(0,4)]
+model.predict(input_val)
+print(model.layers)
+l_num = len(model.layers)
+for layer in reversed(model.layers):
+    print(layer.out_values)
+    l_num = l_num - 1
+    for n_num , neuron in enumerate(layer.neurons):
+        print(neuron)
+        if l_num-1 >= 0:
+            previous_values =  model.layers[l_num-1].out_values
+        else:
+            previous_values =  input_val
+        z_value = calc_z_value(neuron.weights, previous_values, neuron.bias)
+        neuron.remember_z_value(z_value)
+        for w_num, weight in enumerate(neuron.weights):
+            if l_num == len(model.layers)-1:
+                constant_part = derivative_sigmoid(z_value)*derivative_cost_to_output(neuron.out_value, dis_out[n_num])
+            else:
+                constant_part = derivative_sigmoid(z_value)*sum([w*
+                                                                 derivative_sigmoid(model.layers[l_num+1].neurons[n_num].z_value)*
+                                                                 model.layers[l_num+1].neurons[n_num].constant_part[i] 
+                                                                 for i, w in enumerate(neuron.weights)])
+            neuron.remember_cosnstant_part(constant_part)
+            print(w_num)
+            weight_cost_ratio = previous_values[w_num]*constant_part
+            print(weight_cost_ratio)
+            neuron.remember_weight_cost(weight_cost_ratio)
