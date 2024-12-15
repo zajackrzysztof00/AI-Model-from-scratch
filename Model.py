@@ -1,15 +1,31 @@
-# Neural Network Implementation
-# This script implements a basic neural network from scratch in Python. It includes the following components:
-# 1. **Activation Functions**: Implements the sigmoid function and its derivative.
-# 2. **Neuron Class**: Represents a single neuron in the network, including weight and bias management.
-# 3. **Layer Class**: Represents a layer of neurons in the network.
-# 4. **Model Class**: Represents the overall neural network model with multiple layers and provides prediction and training functionalities.
-# 5. **Training Loop**: Demonstrates a simple training loop using a predefined input and desired output.
+"""
+This script implements a basic feedforward neural network with backpropagation 
+for training. The network supports multiple layers, with each layer consisting of 
+neurons that apply the sigmoid activation function. The training process uses 
+gradient descent to adjust the weights and biases of the neurons based on the 
+error (cost) between the predicted and desired outputs.
+
+Key Features:
+- Forward propagation to compute outputs
+- Backpropagation to calculate gradients
+- Gradient descent for weight and bias updates
+- Modular design with Neuron, Layer, and Model classes
+
+Dependencies:
+- Python standard libraries: math, random, and typing
+
+Usage:
+1. Create a model specifying the input size.
+2. Add layers with the desired number of neurons.
+3. Train the model using input data and expected output values.
+
+"""
 
 import math
 from random import random
 from typing import List
 
+# Activation Functions and Derivatives
 def sigmoid(value: float) -> float:
     """
     Computes the sigmoid activation function.
@@ -25,6 +41,7 @@ def sigmoid(value: float) -> float:
     except OverflowError:
         return 0.0
 
+
 def derivative_sigmoid(value: float) -> float:
     """
     Computes the derivative of the sigmoid function.
@@ -37,6 +54,7 @@ def derivative_sigmoid(value: float) -> float:
     """
     sig = sigmoid(value)
     return sig * (1 - sig)
+
 
 def calc_z_value(weights: List[float], values: List[float], bias: float) -> float:
     """
@@ -52,6 +70,7 @@ def calc_z_value(weights: List[float], values: List[float], bias: float) -> floa
     """
     return sum(w * v for w, v in zip(weights, values)) + bias
 
+
 def derivative_cost_to_output(output_value: float, desired_value: float) -> float:
     """
     Computes the derivative of the cost function with respect to the output.
@@ -65,21 +84,23 @@ def derivative_cost_to_output(output_value: float, desired_value: float) -> floa
     """
     return 2 * (output_value - desired_value)
 
+
+# Neuron Class
 class Neuron:
     """
     Represents a single neuron in the neural network.
     """
     def __init__(self, input_size: int):
         """
-        Initializes a Neuron with random weights and bias.
+        Initializes a neuron with random weights and bias.
 
         Args:
             input_size (int): The number of inputs to the neuron.
         """
         self.weights: List[float] = [random() for _ in range(input_size)]
         self.bias: float = random()
-        self.weight_cost: List[float] = []
-        self.constant_part: List[float] = []
+        self.weight_cost: List[float] = [0.0 for _ in range(input_size)]
+        self.constant_part: float = 0.0
 
     def calc(self, input_values: List[float]) -> float:
         """
@@ -89,99 +110,79 @@ class Neuron:
             input_values (List[float]): Input values to the neuron.
 
         Returns:
-            float: The output of the neuron after applying the sigmoid activation function.
+            float: The output of the neuron after applying the sigmoid function.
         """
-        self.out_value = calc_z_value(self.weights, input_values, self.bias)
-        self.out_value = sigmoid(self.out_value)
+        self.z_value = calc_z_value(self.weights, input_values, self.bias)
+        self.out_value = sigmoid(self.z_value)
         return self.out_value
 
-    def remember_weight_cost(self, weight_cost: float):
+    def remember_weight_cost(self, weight_idx: int, weight_cost: float):
         """
-        Stores the weight cost for later use.
+        Updates the weight cost for the specified weight index.
 
         Args:
-            weight_cost (float): The weight cost to store.
+            weight_idx (int): The index of the weight.
+            weight_cost (float): The calculated weight cost.
         """
-        self.weight_cost.append(weight_cost)
+        self.weight_cost[weight_idx] += weight_cost
 
     def remember_constant_part(self, constant: float):
         """
-        Stores the constant part for later use.
+        Stores the constant part of the gradient for bias updates.
 
         Args:
-            constant (float): The constant part to store.
+            constant (float): The gradient constant part.
         """
-        self.constant_part.append(constant)
-
-    def remember_z_value(self, z_value: float):
-        """
-        Stores the z-value for the neuron.
-
-        Args:
-            z_value (float): The z-value to store.
-        """
-        self.z_value = z_value
+        self.constant_part = constant
 
     def modify_weights(self):
         """
-        Updates the weights based on the stored weight costs.
+        Updates the weights based on the accumulated weight costs.
         """
         self.weights = [w - wc for w, wc in zip(self.weights, self.weight_cost)]
-
-    def remember_bias_change(self, change: float):
-        """
-        Stores the bias change for later use.
-
-        Args:
-            change (float): The bias change to store.
-        """
-        self.bias_change = change
+        self.weight_cost = [0.0 for _ in range(len(self.weights))]  # Reset weight costs after update
 
     def modify_bias(self):
         """
-        Updates the bias based on the stored bias change.
+        Updates the bias based on the stored constant part.
         """
-        self.bias -= self.bias_change
+        self.bias -= self.constant_part
 
+
+# Layer Class
 class Layer:
     """
     Represents a single layer in the neural network.
     """
     def __init__(self, input_size: int, output_size: int):
         """
-        Initializes a Layer with a specified number of neurons.
+        Initializes a layer with a specified number of neurons.
 
         Args:
             input_size (int): The number of inputs to the layer.
             output_size (int): The number of neurons in the layer.
         """
         self.neurons: List[Neuron] = [Neuron(input_size) for _ in range(output_size)]
+        self.out_values: List[float] = []
 
     def calc_output(self, input_values: List[float]) -> None:
         """
-        Computes the output of the layer.
+        Computes the output values of all neurons in the layer.
 
         Args:
             input_values (List[float]): Input values to the layer.
         """
-        self.out_values: List[float] = [neuron.calc(input_values) for neuron in self.neurons]
+        self.out_values = [neuron.calc(input_values) for neuron in self.neurons]
 
-    def calc_cost(self, train_result: List[float]) -> None:
-        """
-        Computes the cost for the layer based on the desired output.
 
-        Args:
-            train_result (List[float]): The desired output values for the layer.
-        """
-        self.cost: List[float] = [(out - train_result[i])**2 for i, out in enumerate(self.out_values)]
-
+# Model Class
 class Model:
     """
     Represents the neural network model.
     """
     def __init__(self, input_size: int):
         """
-        Initializes the Model with an input size.
+        Initializes the model with an input size.
 
         Args:
             input_size (int): The number of inputs to the model.
@@ -194,20 +195,20 @@ class Model:
         Adds a new layer to the model.
 
         Args:
-            layer_size (int): The size (number of neurons) of the layer to add.
+            layer_size (int): The number of neurons in the new layer.
         """
-        layer_input = self.layers[-1].output_size if self.layers else self.input_size
+        layer_input = len(self.layers[-1].neurons) if self.layers else self.input_size
         self.layers.append(Layer(layer_input, layer_size))
 
     def predict(self, input_values: List[float]) -> List[float]:
         """
-        Makes a prediction using the current model.
+        Makes a prediction using the model.
 
         Args:
-            input_values (List[float]): Input values for prediction.
+            input_values (List[float]): Input data for prediction.
 
         Returns:
-            List[float]: Predicted output values.
+            List[float]: The predicted output values.
         """
         values = input_values
         for layer in self.layers:
@@ -217,57 +218,61 @@ class Model:
 
     def train(self, train_values: List[float], train_result: List[float]) -> None:
         """
-        Trains the model on a single batch of data.
+        Trains the model using a single training example.
 
         Args:
             train_values (List[float]): Input training data.
-            train_result (List[float]): Desired output training data.
+            train_result (List[float]): Desired output values.
         """
+        # Forward pass
         self.predict(train_values)
-        for i, layer in enumerate(self.layers):
-            self.layers[-i].calc_cost(train_result)
 
-# Model and Training Configuration
-model = Model(8)
-model.add_layer(8)
-model.add_layer(8)
-model.add_layer(8)
-model.add_layer(8)
+        # Backpropagation
+        for layer_idx in reversed(range(len(self.layers))):
+            layer = self.layers[layer_idx]
+            for neuron_idx, neuron in enumerate(layer.neurons):
+                previous_values = self.layers[layer_idx - 1].out_values if layer_idx > 0 else train_values
+                z_value = neuron.z_value
 
-input_val = [i for i in range(8)]
-dis_out = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+                if layer_idx == len(self.layers) - 1:  # Output layer
+                    constant_part = derivative_sigmoid(z_value) * derivative_cost_to_output(
+                        neuron.out_value, train_result[neuron_idx]
+                    )
+                else:  # Hidden layers
+                    next_layer = self.layers[layer_idx + 1]
+                    constant_part = derivative_sigmoid(z_value) * sum(
+                        next_neuron.weights[neuron_idx] * next_neuron.constant_part
+                        for next_neuron in next_layer.neurons
+                    )
+
+                # Store the constant part for the current neuron
+                neuron.remember_constant_part(constant_part)
+
+                # Update weight costs based on outputs of the current neuron
+                for weight_idx in range(len(neuron.weights)):
+                    weight_cost = previous_values[weight_idx] * constant_part
+                    neuron.remember_weight_cost(weight_idx, weight_cost)
+
+        # Update weights and biases
+        for layer in self.layers:
+            for neuron in layer.neurons:
+                neuron.modify_weights()
+                neuron.modify_bias()
+
+
+# Model Configuration
+model = Model(128)
+model.add_layer(10)
+model.add_layer(8)
+model.add_layer(6)
+model.add_layer(4)
+
+# Training Configuration
+input_val = [i for i in range(128)]
+desired_output = [0.1, 0.2, 0.3, 0.4]
 
 # Training Loop
-count = 0
-while count < 1000:  # Limit training iterations
-    count += 1
+for count in range(1000):  # Train for 1000 iterations
     prediction = model.predict(input_val)
-    print(f"Iteration {count}: Prediction {prediction}, Desired {dis_out}")
-
-    for layer_idx, layer in reversed(list(enumerate(model.layers))):
-        for neuron_idx, neuron in enumerate(layer.neurons):
-            previous_values = model.layers[layer_idx - 1].out_values if layer_idx > 0 else input_val
-
-            z_value = calc_z_value(neuron.weights, previous_values, neuron.bias)
-            neuron.remember_z_value(z_value)
-
-            if layer_idx == len(model.layers) - 1:  # Output layer
-                constant_part = derivative_sigmoid(z_value) * derivative_cost_to_output(neuron.out_value, dis_out[neuron_idx])
-            else:  # Hidden layers
-                next_layer = model.layers[layer_idx + 1]
-                constant_part = derivative_sigmoid(z_value) * sum(
-                    w * derivative_sigmoid(next_neuron.z_value) * next_neuron.constant_part[neuron_idx]
-                    for w, next_neuron in zip(neuron.weights, next_layer.neurons)
-                )
-
-            neuron.remember_constant_part(constant_part)
-            neuron.remember_bias_change(constant_part)
-
-            for weight_idx, weight in enumerate(neuron.weights):
-                weight_cost = previous_values[weight_idx] * constant_part
-                neuron.remember_weight_cost(weight_cost)
-
-    for layer in reversed(model.layers):
-        for neuron in layer.neurons:
-            neuron.modify_weights()
-            neuron.modify_bias()
+    print(f"Iteration {count + 1}: Prediction {prediction}, Desired {desired_output}")
+    model.train(input_val, desired_output)
